@@ -1,0 +1,62 @@
+{
+  "name": "@iofate/ftx-ws",
+  "version": "0.0.0",
+  "description": "Node.js websocket client for FTX",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "lint": "eslint ./src --ext .js,.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run lint && npm run typecheck && npm run build",
+    "start": "ts-node tests/client.ts",
+    "prerelease": "npm run build",
+    "release": "standard-version"
+  },
+  "keywords": [
+    "ftx",
+    "websocket",
+    "ws",
+    "cryptocurrency",
+    "exchange",
+    "nodejs"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IOfate/ftx-ws.git"
+  },
+  "bugs": {
+    "url": "https://github.com/IOfate/ftx-ws/issues"
+  },
+  "author": "IOfate",
+  "license": "MIT",
+  "dependencies": {
+    "dayjs": "^1.11.3",
+    "emittery": "^0.11.0",
+    "parse-duration": "^1.0.2",
+    "queue": "^6.0.2",
+    "ws": "^8.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.3",
+    "@types/ws": "^8.5.3",
+    "@typescript-eslint/eslint-plugin": "^5.30.5",
+    "@typescript-eslint/parser": "^5.30.5",
+    "eslint": "^8.19.0",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-plugin-import": "^2.26.0",
+    "eslint-plugin-node": "^11.1.0",
+    "eslint-plugin-prettier": "^4.2.1",
+    "eslint-plugin-unicorn": "^43.0.0",
+    "prettier": "^2.7.1",
+    "standard-version": "^9.5.0",
+    "ts-node": "^10.8.2",
+    "typescript": "^4.7.4"
+  },
+  "files": [
+    "dist/**/*.{js,ts,map}",
+    "CHANGELOG"
+  ],
+  "engines": {
+    "node": ">=16"
+  }
+}
