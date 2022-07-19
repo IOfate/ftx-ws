@@ -16,13 +16,14 @@ export class CandleEmulator {
     private readonly symbol: string,
     private readonly interval: string,
     private readonly globalEmitter: Emittery,
+    private readonly internalEmitter: Emittery,
   ) {
     this.intervalMs = parseDuration(interval);
     this.resetCurrentCandle();
   }
 
   launch() {
-    this.unSubFn = this.globalEmitter.on(`ticker-${this.symbol}`, (ticker: Ticker) => {
+    this.unSubFn = this.internalEmitter.on(`ticker-${this.symbol}`, (ticker: Ticker) => {
       this.processNextTicker(ticker);
     });
   }

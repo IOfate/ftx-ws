@@ -13,7 +13,10 @@ export class EventHandler {
   private lastTickers: { [pair: string]: Ticker };
   private mapResolveWaitEvent: { [eventKey: string]: () => void } = {};
 
-  constructor(private readonly emitter: Emittery) {
+  constructor(
+    private readonly globalEmitter: Emittery,
+    private readonly internalEmitter: Emittery,
+  ) {
     this.mapResolveWaitEvent = {};
     this.lastTickers = {};
   }
@@ -46,7 +49,7 @@ export class EventHandler {
     if (received.type === 'error') {
       const error = new Error(received.msg);
 
-      this.emitter.emit('error', error);
+      this.globalEmitter.emit('error', error);
     }
 
     if (received.type === 'update' && received.channel === 'ticker') {
@@ -91,6 +94,7 @@ export class EventHandler {
     };
 
     this.lastTickers[symbol] = ticker;
-    this.emitter.emit(`ticker-${symbol}`, ticker);
+    this.globalEmitter.emit(`ticker-${symbol}`, ticker);
+    this.internalEmitter.emit(`ticker-${symbol}`, ticker);
   }
 }

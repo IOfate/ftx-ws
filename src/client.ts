@@ -20,7 +20,6 @@ export class Client {
   private readonly retrySubscription = parseDuration('2s');
   private readonly triggerTickerDisconnected = parseDuration('6m');
   private readonly wsPath = 'wss://ftx.com/ws/';
-  private readonly internalEventHandler: EventHandler;
   private readonly internalEmitter: Emittery;
   private readonly emitChannel = {
     ERROR: 'error',
@@ -48,9 +47,8 @@ export class Client {
     this.socketOpen = false;
     this.askingClose = false;
     this.mapRetrySubscription = {};
-    this.eventHandler = new EventHandler(emitter);
     this.internalEmitter = new Emittery();
-    this.internalEventHandler = new EventHandler(this.internalEmitter);
+    this.eventHandler = new EventHandler(emitter, this.internalEmitter);
   }
 
   async connect(): Promise<void> {
@@ -197,7 +195,12 @@ export class Client {
     }
 
     const formatSymbol = symbol.replace('-', '/');
-    const candleEmulator = new CandleEmulator(formatSymbol, interval, this.internalEmitter);
+    const candleEmulator = new CandleEmulator(
+      formatSymbol,
+      interval,
+      this.emitter,
+      this.internalEmitter,
+    );
 
     candleEmulator.launch();
 
@@ -430,7 +433,6 @@ export class Client {
 
     this.ws.on('message', (data: string) => {
       this.eventHandler.processMessage(data);
-      this.internalEventHandler.processMessage(data);
     });
 
     this.ws.on('close', () => {
