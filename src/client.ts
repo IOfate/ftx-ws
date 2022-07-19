@@ -20,6 +20,8 @@ export class Client {
   private readonly retrySubscription = parseDuration('2s');
   private readonly triggerTickerDisconnected = parseDuration('6m');
   private readonly wsPath = 'wss://ftx.com/ws/';
+  private readonly internalEventHandler: EventHandler;
+  private readonly internalEmitter: Emittery;
   private readonly emitChannel = {
     ERROR: 'error',
     RECONNECT: 'reconnect',
@@ -35,7 +37,6 @@ export class Client {
   private pingTimer: NodeJS.Timer;
   private subscriptions: Subscription[] = [];
   private eventHandler: EventHandler;
-  private internalEventHandler: EventHandler;
   private disconnectedTrigger: number;
   private lastPongReceived: number | undefined;
   private mapRetrySubscription: { [key: string]: NodeJS.Timer };
@@ -48,6 +49,8 @@ export class Client {
     this.askingClose = false;
     this.mapRetrySubscription = {};
     this.eventHandler = new EventHandler(emitter);
+    this.internalEmitter = new Emittery();
+    this.internalEventHandler = new EventHandler(this.internalEmitter);
   }
 
   async connect(): Promise<void> {
@@ -70,7 +73,7 @@ export class Client {
     }
   }
 
-  subscribeTicker(symbol: string): void {
+  subscribeTicker(symbol: string, forCandle = false): void {
     const formatSymbol = symbol.replace('-', '/');
 
     if (this.hasTickerSubscription(symbol)) {
@@ -81,7 +84,7 @@ export class Client {
 
     clearInterval(this.mapRetrySubscription[keySub]);
 
-    this.addTickerSubscription(symbol);
+    this.addTickerSubscription(symbol, forCandle);
     const sub = () => {
       if (!this.isSocketOpen()) {
         const timerRetry = setTimeout(() => sub(), this.retrySubscription).unref();
@@ -152,6 +155,9 @@ export class Client {
       return;
     }
 
+    const tickerSubs = this.subscriptions.find(
+      (fSub: Subscription) => fSub.type === 'ticker' && fSub.symbol === symbol,
+    );
     this.removeTickerSubscription(symbol);
     this.queueProcessor.push(() => {
       this.eventHandler.waitForEvent(`unsubscribed-ticker-${formatSymbol}`, (result: boolean) => {
@@ -161,7 +167,7 @@ export class Client {
           return;
         }
 
-        this.addTickerSubscription(symbol);
+        this.addTickerSubscription(symbol, (tickerSubs as TickerSubscription).forCandle);
       });
 
       this.send(
@@ -174,7 +180,7 @@ export class Client {
           if (error) {
             this.emitter.emit(this.emitChannel.ERROR, error);
 
-            return this.addTickerSubscription(symbol);
+            return this.addTickerSubscription(symbol, (tickerSubs as TickerSubscription).forCandle);
           }
         },
       );
@@ -191,11 +197,11 @@ export class Client {
     }
 
     const formatSymbol = symbol.replace('-', '/');
-    const candleEmulator = new CandleEmulator(formatSymbol, interval, this.emitter);
+    const candleEmulator = new CandleEmulator(formatSymbol, interval, this.internalEmitter);
 
     candleEmulator.launch();
 
-    this.subscribeTicker(symbol);
+    this.subscribeTicker(symbol, true);
     this.addCandleSubscription(formatSymbol, interval, candleEmulator);
   }
 
@@ -285,14 +291,18 @@ export class Client {
         return timeDiff >= this.triggerTickerDisconnected;
       })
       .forEach((pair: string) => {
+        const tickerSubs = this.subscriptions.find(
+          (fSub: Subscription) => fSub.type === 'ticker' && fSub.symbol === pair,
+        ) as TickerSubscription;
         this.unsubscribeTicker(pair);
-        this.subscribeTicker(pair);
+        this.subscribeTicker(pair, tickerSubs.forCandle);
       });
   }
 
-  private addTickerSubscription(symbol: string): void {
+  private addTickerSubscription(symbol: string, forCandle: boolean): void {
     const subscription: TickerSubscription = {
       symbol,
+      forCandle,
       type: 'ticker',
       timestamp: Date.now(),
     };
@@ -354,8 +364,13 @@ export class Client {
     this.subscriptions.length = 0;
 
     for (const subscription of previousSubs) {
-      if (subscription.type === 'ticker') {
+      if (subscription.type === 'ticker' && !(subscription as TickerSubscription).forCandle) {
         this.subscribeTicker(subscription.symbol);
+      }
+
+      if (subscription.type === 'candle') {
+        (subscription as CandleSubscription).emulator.reset();
+        this.subscribeCandle(subscription.symbol, (subscription as CandleSubscription).interval);
       }
     }
   }
@@ -415,6 +430,7 @@ export class Client {
 
     this.ws.on('message', (data: string) => {
       this.eventHandler.processMessage(data);
+      this.internalEventHandler.processMessage(data);
     });
 
     this.ws.on('close', () => {

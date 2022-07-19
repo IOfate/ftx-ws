@@ -10,6 +10,7 @@ export class CandleEmulator {
   private readonly gapBetweenCandleTrigger = 500;
   private readonly intervalMs: number;
   private currentCandle: Candle;
+  private unSubFn: Emittery.UnsubscribeFn;
 
   constructor(
     private readonly symbol: string,
@@ -21,9 +22,13 @@ export class CandleEmulator {
   }
 
   launch() {
-    this.globalEmitter.on(`ticker-${this.symbol}`, (ticker: Ticker) => {
+    this.unSubFn = this.globalEmitter.on(`ticker-${this.symbol}`, (ticker: Ticker) => {
       this.processNextTicker(ticker);
     });
+  }
+
+  reset() {
+    this.unSubFn();
   }
 
   private processNextTicker(ticker: Ticker) {
