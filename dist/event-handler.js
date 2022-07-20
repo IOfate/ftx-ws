@@ -4,8 +4,9 @@ exports.EventHandler = void 0;
 /** Root */
 const util_1 = require("./util");
 class EventHandler {
-    constructor(emitter) {
-        this.emitter = emitter;
+    constructor(globalEmitter, internalEmitter) {
+        this.globalEmitter = globalEmitter;
+        this.internalEmitter = internalEmitter;
         this.maxWaiting = 1500;
         this.mapResolveWaitEvent = {};
         this.mapResolveWaitEvent = {};
@@ -33,7 +34,7 @@ class EventHandler {
         }
         if (received.type === 'error') {
             const error = new Error(received.msg);
-            this.emitter.emit('error', error);
+            this.globalEmitter.emit('error', error);
         }
         if (received.type === 'update' && received.channel === 'ticker') {
             this.processRawTicker(received.market, received.data);
@@ -70,7 +71,8 @@ class EventHandler {
             close: rawTicker.last,
         };
         this.lastTickers[symbol] = ticker;
-        this.emitter.emit(`ticker-${symbol}`, ticker);
+        this.globalEmitter.emit(`ticker-${symbol}`, ticker);
+        this.internalEmitter.emit(`ticker-${symbol}`, ticker);
     }
 }
 exports.EventHandler = EventHandler;

@@ -45,6 +45,13 @@ class FtxWS extends emittery_1.default {
         }
         this.getLastClient('candle').subscribeCandle(symbol, interval);
     }
+    unsubscribeCandle(symbol, interval) {
+        const client = this.clientCandleList.find((client) => client.hasCandleSubscription(symbol, interval));
+        if (!client) {
+            return;
+        }
+        client.unsubscribeCandle(symbol, interval);
+    }
     closeConnection() {
         this.clientTickerList.forEach((client) => client.closeConnection());
         this.clientCandleList.forEach((client) => client.closeConnection());

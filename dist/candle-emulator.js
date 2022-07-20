@@ -7,18 +7,22 @@ exports.CandleEmulator = void 0;
 const parse_duration_1 = __importDefault(require("parse-duration"));
 const dayjs_1 = __importDefault(require("dayjs"));
 class CandleEmulator {
-    constructor(symbol, interval, globalEmitter) {
+    constructor(symbol, interval, globalEmitter, internalEmitter) {
         this.symbol = symbol;
         this.interval = interval;
         this.globalEmitter = globalEmitter;
+        this.internalEmitter = internalEmitter;
         this.gapBetweenCandleTrigger = 500;
         this.intervalMs = (0, parse_duration_1.default)(interval);
         this.resetCurrentCandle();
     }
     launch() {
-        this.globalEmitter.on(`ticker-${this.symbol}`, (ticker) => {
+        this.unSubFn = this.internalEmitter.on(`ticker-${this.symbol}`, (ticker) => {
             this.processNextTicker(ticker);
         });
+    }
+    reset() {
+        this.unSubFn();
     }
     processNextTicker(ticker) {
         const todayMs = (0, dayjs_1.default)().startOf('day').valueOf();

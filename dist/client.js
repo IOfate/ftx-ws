@@ -4,6 +4,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.Client = void 0;
+const emittery_1 = __importDefault(require("emittery"));
 const ws_1 = __importDefault(require("ws"));
 const queue_1 = __importDefault(require("queue"));
 const parse_duration_1 = __importDefault(require("parse-duration"));
@@ -32,7 +33,8 @@ class Client {
         this.socketOpen = false;
         this.askingClose = false;
         this.mapRetrySubscription = {};
-        this.eventHandler = new event_handler_1.EventHandler(emitter);
+        this.internalEmitter = new emittery_1.default();
+        this.eventHandler = new event_handler_1.EventHandler(emitter, this.internalEmitter);
     }
     async connect() {
         this.lastPongReceived = Date.now();
@@ -48,14 +50,14 @@ class Client {
             this.restartPreviousSubscriptions();
         }
     }
-    subscribeTicker(symbol) {
+    subscribeTicker(symbol, forCandle = false) {
         const formatSymbol = symbol.replace('-', '/');
         if (this.hasTickerSubscription(symbol)) {
             return;
         }
         const keySub = `subscribed-ticker-${formatSymbol}`;
         clearInterval(this.mapRetrySubscription[keySub]);
-        this.addTickerSubscription(symbol);
+        this.addTickerSubscription(symbol, forCandle);
         const sub = () => {
             if (!this.isSocketOpen()) {
                 const timerRetry = setTimeout(() => sub(), this.retrySubscription).unref();
@@ -103,6 +105,7 @@ class Client {
         if (!this.hasTickerSubscription(symbol)) {
             return;
         }
+        const tickerSubs = this.subscriptions.find((fSub) => fSub.type === 'ticker' && fSub.symbol === symbol);
         this.removeTickerSubscription(symbol);
         this.queueProcessor.push(() => {
             this.eventHandler.waitForEvent(`unsubscribed-ticker-${formatSymbol}`, (result) => {
@@ -110,7 +113,7 @@ class Client {
                     this.eventHandler.deleteTickerCache(formatSymbol);
                     return;
                 }
-                this.addTickerSubscription(symbol);
+                this.addTickerSubscription(symbol, tickerSubs.forCandle);
             });
             this.send(JSON.stringify({
                 op: 'unsubscribe',
@@ -119,7 +122,7 @@ class Client {
             }), (error) => {
                 if (error) {
                     this.emitter.emit(this.emitChannel.ERROR, error);
-                    return this.addTickerSubscription(symbol);
+                    return this.addTickerSubscription(symbol, tickerSubs.forCandle);
                 }
             });
         });
@@ -132,10 +135,23 @@ class Client {
             return;
         }
         const formatSymbol = symbol.replace('-', '/');
-        const candleEmulator = new candle_emulator_1.CandleEmulator(formatSymbol, interval, this.emitter);
+        const candleEmulator = new candle_emulator_1.CandleEmulator(formatSymbol, interval, this.emitter, this.internalEmitter);
         candleEmulator.launch();
-        this.subscribeTicker(symbol);
+        this.subscribeTicker(symbol, true);
         this.addCandleSubscription(formatSymbol, interval, candleEmulator);
+    }
+    unsubscribeCandle(symbol, interval) {
+        const formatSymbol = symbol.replace('-', '/');
+        if (!this.hasCandleSubscription(formatSymbol, interval)) {
+            return;
+        }
+        const candleSubscription = this.subscriptions.find((fSub) => fSub.type === 'candle' && fSub.symbol === symbol && fSub.interval === interval);
+        candleSubscription.emulator.reset();
+        this.removeCandleSubscription(formatSymbol, interval);
+        const sameTickerSocket = this.subscriptions.filter((fSub) => fSub.type === 'candle' && fSub.symbol === formatSymbol).length;
+        if (sameTickerSocket === 1) {
+            this.unsubscribeTicker(formatSymbol);
+        }
     }
     closeConnection() {
         if (this.subscriptions.length) {
@@ -203,13 +219,15 @@ class Client {
             return timeDiff >= this.triggerTickerDisconnected;
         })
             .forEach((pair) => {
+            const tickerSubs = this.subscriptions.find((fSub) => fSub.type === 'ticker' && fSub.symbol === pair);
             this.unsubscribeTicker(pair);
-            this.subscribeTicker(pair);
+            this.subscribeTicker(pair, tickerSubs.forCandle);
         });
     }
-    addTickerSubscription(symbol) {
+    addTickerSubscription(symbol, forCandle) {
         const subscription = {
             symbol,
+            forCandle,
             type: 'ticker',
             timestamp: Date.now(),
         };
@@ -235,6 +253,16 @@ class Client {
         this.subscriptions.push(subscription);
         this.globalEmitSubscription();
     }
+    removeCandleSubscription(symbol, interval) {
+        if (!this.hasCandleSubscription(symbol, interval)) {
+            return;
+        }
+        const indexSub = this.subscriptions
+            .filter((fSub) => fSub.type === 'candle')
+            .findIndex((fSub) => fSub.symbol === symbol && fSub.interval === interval);
+        this.subscriptions.splice(indexSub, 1);
+        this.globalEmitSubscription();
+    }
     send(data, sendCb = (0, util_1.noop)()) {
         if (!this.ws) {
             return;
@@ -253,8 +281,12 @@ class Client {
         const previousSubs = [].concat(this.subscriptions);
         this.subscriptions.length = 0;
         for (const subscription of previousSubs) {
-            if (subscription.type === 'ticker') {
+            if (subscription.type === 'ticker' && !subscription.forCandle) {
                 this.subscribeTicker(subscription.symbol);
+            }
+            if (subscription.type === 'candle') {
+                subscription.emulator.reset();
+                this.subscribeCandle(subscription.symbol, subscription.interval);
             }
         }
     }

@@ -9,6 +9,7 @@ export declare class Client {
     private readonly retrySubscription;
     private readonly triggerTickerDisconnected;
     private readonly wsPath;
+    private readonly internalEmitter;
     private readonly emitChannel;
     private ws;
     private socketOpen;
@@ -18,15 +19,15 @@ export declare class Client {
     private pingTimer;
     private subscriptions;
     private eventHandler;
-    private internalEventHandler;
     private disconnectedTrigger;
     private lastPongReceived;
     private mapRetrySubscription;
     constructor(emitter: Emittery, globalEmitSubscription: () => void);
     connect(): Promise<void>;
-    subscribeTicker(symbol: string): void;
+    subscribeTicker(symbol: string, forCandle?: boolean): void;
     unsubscribeTicker(symbol: string): void;
     subscribeCandle(symbol: string, interval: string): void;
+    unsubscribeCandle(symbol: string, interval: string): void;
     closeConnection(): void;
     forceCloseConnection(): void;
     isSocketOpen(): boolean;
@@ -41,6 +42,7 @@ export declare class Client {
     private addTickerSubscription;
     private removeTickerSubscription;
     private addCandleSubscription;
+    private removeCandleSubscription;
     private send;
     private restartPreviousSubscriptions;
     private requireSocketToBeOpen;

@@ -12,6 +12,7 @@ export declare class FtxWS extends Emittery {
     unsubscribeTicker(symbol: string): void;
     unsubscribeTickers(symbols: string[]): void;
     subscribeCandle(symbol: string, interval: string): void;
+    unsubscribeCandle(symbol: string, interval: string): void;
     closeConnection(): void;
     isSocketOpen(): boolean;
     isSocketConnecting(): boolean;
