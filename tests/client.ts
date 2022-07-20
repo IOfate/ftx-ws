@@ -12,12 +12,27 @@ const main = async () => {
   const unSubFn = client.on('ticker-BTC/USD', tickerBtc => console.log(tickerBtc));
   client.on('candle-BTC/USD-1m', candleBtc => console.log(candleBtc));
 
-  client.subscribeTickers(['BTC/USD']);
+  client.subscribeTickers(['BTC/USD', 'ETH/USD']);
+  client.subscribeTicker('LTC/USD');
+  client.subscribeTicker('BNB/USD');
+  client.subscribeTicker('UNI/USD');
+  client.subscribeTicker('XRP/USD');
+  client.subscribeTicker('SOL/USD');
+  client.subscribeTicker('NEAR/USD');
+  client.subscribeTicker('YFI/USD');
+  client.subscribeTicker('SNX/USD');
+  client.subscribeTicker('CRO/USD');
+  client.subscribeTicker('COMP/USD');
   client.subscribeCandle('BTC/USD', '1m');
+  client.subscribeCandle('ETH/USD', '1m');
 
-  await delay(parseDuration('5s'));
+  await delay(parseDuration('4s'));
 
-  // client.unsubscribeTicker('BTC/USD');
+  client.unsubscribeTicker('BTC/USD');
+
+  setTimeout(() => {
+    client.unsubscribeCandle('BTC/USD', '1m');
+  }, parseDuration('2m'));
 
   unSubFn();
 };

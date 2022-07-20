@@ -25,7 +25,7 @@ This package is made by the IOfate company and is open source, feel free to use 
   - [x] Unsubscribe
 - [x] Candlesticks (**emulated**)
   - [x] Subscription
-  - [ ] Unsubscribe
+  - [x] Unsubscribe
 - [x] Send ping
 - [x] Emit errors by sockets
 - [x] Auto-reconnect

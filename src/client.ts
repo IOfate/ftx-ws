@@ -208,6 +208,30 @@ export class Client {
     this.addCandleSubscription(formatSymbol, interval, candleEmulator);
   }
 
+  unsubscribeCandle(symbol: string, interval: string): void {
+    const formatSymbol = symbol.replace('-', '/');
+
+    if (!this.hasCandleSubscription(formatSymbol, interval)) {
+      return;
+    }
+
+    const candleSubscription = this.subscriptions.find(
+      (fSub: CandleSubscription) =>
+        fSub.type === 'candle' && fSub.symbol === symbol && fSub.interval === interval,
+    ) as CandleSubscription;
+
+    candleSubscription.emulator.reset();
+    this.removeCandleSubscription(formatSymbol, interval);
+
+    const sameTickerSocket = this.subscriptions.filter(
+      (fSub: Subscription) => fSub.type === 'candle' && fSub.symbol === formatSymbol,
+    ).length;
+
+    if (sameTickerSocket === 1) {
+      this.unsubscribeTicker(formatSymbol);
+    }
+  }
+
   closeConnection(): void {
     if (this.subscriptions.length) {
       throw new Error(`You have activated subscriptions! (${this.subscriptions.length})`);
@@ -337,6 +361,21 @@ export class Client {
     };
 
     this.subscriptions.push(subscription);
+    this.globalEmitSubscription();
+  }
+
+  private removeCandleSubscription(symbol: string, interval: string): void {
+    if (!this.hasCandleSubscription(symbol, interval)) {
+      return;
+    }
+
+    const indexSub = this.subscriptions
+      .filter((fSub: Subscription) => fSub.type === 'candle')
+      .findIndex(
+        (fSub: CandleSubscription) => fSub.symbol === symbol && fSub.interval === interval,
+      );
+
+    this.subscriptions.splice(indexSub, 1);
     this.globalEmitSubscription();
   }
 

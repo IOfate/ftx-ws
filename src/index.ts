@@ -65,6 +65,18 @@ export class FtxWS extends Emittery {
     this.getLastClient('candle').subscribeCandle(symbol, interval);
   }
 
+  unsubscribeCandle(symbol: string, interval: string): void {
+    const client = this.clientCandleList.find((client: Client) =>
+      client.hasCandleSubscription(symbol, interval),
+    );
+
+    if (!client) {
+      return;
+    }
+
+    client.unsubscribeCandle(symbol, interval);
+  }
+
   closeConnection(): void {
     this.clientTickerList.forEach((client: Client) => client.closeConnection());
     this.clientCandleList.forEach((client: Client) => client.closeConnection());
