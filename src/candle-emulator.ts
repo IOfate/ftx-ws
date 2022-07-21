@@ -1,12 +1,16 @@
 import Emittery from 'emittery';
 import parseDuration from 'parse-duration';
 import dayjs from 'dayjs';
+import axios from 'axios';
 
 /** Models */
 import { Ticker } from './models/ticker';
 import { Candle } from './models/candle';
+import { FtxResponse } from './models/ftx-response.model';
+import { CandleApi } from './models/candle-api.model';
 
 export class CandleEmulator {
+  private readonly ftxApiUrl = 'https://ftx.com/api';
   private readonly gapBetweenCandleTrigger = 500;
   private readonly intervalMs: number;
   private currentCandle: Candle;
@@ -22,7 +26,13 @@ export class CandleEmulator {
     this.resetCurrentCandle();
   }
 
-  launch() {
+  async launch() {
+    const fetchCurrentCandle = await this.getCurrentCandleFromApi();
+
+    if (fetchCurrentCandle) {
+      this.currentCandle = fetchCurrentCandle;
+    }
+
     this.unSubFn = this.internalEmitter.on(`ticker-${this.symbol}`, (ticker: Ticker) => {
       this.processNextTicker(ticker);
     });
@@ -100,5 +110,27 @@ export class CandleEmulator {
 
     this.currentCandle.close = ticker.last;
     this.currentCandle.timestamp = ticker.timestamp;
+  }
+
+  private async getCurrentCandleFromApi(): Promise<Candle | null> {
+    const intervalSecond = parseDuration(this.interval, 'second');
+    const symbol = encodeURIComponent(this.symbol);
+    const url = `${this.ftxApiUrl}/markets/${symbol}/candles?resolution=${intervalSecond}`;
+
+    try {
+      const response = await axios.get<FtxResponse<CandleApi[]>>(url);
+      const lastCandle = response.data.result.pop();
+
+      return {
+        high: lastCandle.high,
+        low: lastCandle.low,
+        open: lastCandle.open,
+        close: lastCandle.close,
+        symbol: this.symbol,
+        timestamp: Number.parseInt(lastCandle.time.toString(), 10),
+      } as Candle;
+    } catch (e) {
+      return null;
+    }
   }
 }
