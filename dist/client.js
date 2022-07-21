@@ -28,6 +28,7 @@ class Client {
             SOCKET_NOT_READY: 'socket-not-ready',
             SUBSCRIPTIONS: 'subscriptions',
             RETRY_SUBSCRIPTION: 'retry-subscription',
+            RECONNECT_CANDLE: 'reconnect-candle',
         };
         this.subscriptions = [];
         this.socketOpen = false;
@@ -222,6 +223,12 @@ class Client {
             const tickerSubs = this.subscriptions.find((fSub) => fSub.type === 'ticker' && fSub.symbol === pair);
             this.unsubscribeTicker(pair);
             this.subscribeTicker(pair, tickerSubs.forCandle);
+            if (tickerSubs.forCandle) {
+                const candleSubList = this.subscriptions.filter((fSub) => fSub.type === 'candle' && fSub.symbol === pair);
+                candleSubList.forEach((candleSub) => {
+                    this.emitter.emit(this.emitChannel.RECONNECT_CANDLE, candleSub);
+                });
+            }
         });
     }
     addTickerSubscription(symbol, forCandle) {
