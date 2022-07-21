@@ -27,6 +27,7 @@ export class Client {
     SOCKET_NOT_READY: 'socket-not-ready',
     SUBSCRIPTIONS: 'subscriptions',
     RETRY_SUBSCRIPTION: 'retry-subscription',
+    RECONNECT_CANDLE: 'reconnect-candle',
   };
   private ws: WebSocket;
   private socketOpen: boolean;
@@ -323,6 +324,16 @@ export class Client {
         ) as TickerSubscription;
         this.unsubscribeTicker(pair);
         this.subscribeTicker(pair, tickerSubs.forCandle);
+
+        if (tickerSubs.forCandle) {
+          const candleSubList = this.subscriptions.filter(
+            (fSub: Subscription) => fSub.type === 'candle' && fSub.symbol === pair,
+          ) as CandleSubscription[];
+
+          candleSubList.forEach((candleSub: CandleSubscription) => {
+            this.emitter.emit(this.emitChannel.RECONNECT_CANDLE, candleSub);
+          });
+        }
       });
   }
 
