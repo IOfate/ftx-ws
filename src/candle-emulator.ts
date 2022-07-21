@@ -10,7 +10,6 @@ import { CandleApi } from './models/candle-api.model';
 
 export class CandleEmulator {
   private readonly ftxApiUrl = 'https://ftx.com/api';
-  private readonly gapBetweenCandleTrigger = 500;
   private readonly intervalMs: number;
   private currentCandle: Candle;
   private unSubFn: Emittery.UnsubscribeFn;
