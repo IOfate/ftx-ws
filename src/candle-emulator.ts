@@ -1,6 +1,5 @@
 import Emittery from 'emittery';
 import parseDuration from 'parse-duration';
-import dayjs from 'dayjs';
 import axios from 'axios';
 
 /** Models */
@@ -15,6 +14,7 @@ export class CandleEmulator {
   private readonly intervalMs: number;
   private currentCandle: Candle;
   private unSubFn: Emittery.UnsubscribeFn;
+  private timestampDivider: number;
 
   constructor(
     private readonly symbol: string,
@@ -43,48 +43,15 @@ export class CandleEmulator {
   }
 
   private processNextTicker(ticker: Ticker) {
-    const todayMs = dayjs().startOf('day').valueOf();
-    const startNextCandle = this.getNextCandle(todayMs, ticker.timestamp);
-    const currentCandle = startNextCandle - this.intervalMs;
-    const currentCandleMax = currentCandle + this.gapBetweenCandleTrigger;
-    const inStartCurrentCandle =
-      ticker.timestamp >= currentCandle && ticker.timestamp < currentCandleMax;
-    const lastTickMin = startNextCandle - this.gapBetweenCandleTrigger;
-    const lastTickMax = startNextCandle + this.gapBetweenCandleTrigger;
-    const inLastTickCandle = ticker.timestamp >= lastTickMin && ticker.timestamp <= lastTickMax;
+    const previousCpt = this.timestampDivider;
+    this.timestampDivider = Math.trunc(ticker.timestamp / this.intervalMs);
 
-    if (inStartCurrentCandle) {
-      this.resetCurrentCandle();
-      this.updateCurrentCandle(ticker);
-
-      return;
-    }
-
-    if (
-      ticker.timestamp > currentCandleMax &&
-      ticker.timestamp < lastTickMin &&
-      this.currentCandle.open
-    ) {
-      this.updateCurrentCandle(ticker);
-
-      return;
-    }
-
-    if (inLastTickCandle && this.currentCandle.open) {
-      this.updateCurrentCandle(ticker);
+    if (this.timestampDivider !== previousCpt) {
       this.globalEmitter.emit(`candle-${this.symbol}-${this.interval}`, this.currentCandle);
       this.resetCurrentCandle();
     }
-  }
 
-  private getNextCandle(todayMs: number, tickerMs: number): number {
-    let firstTick = todayMs;
-
-    while (firstTick < tickerMs) {
-      firstTick += this.intervalMs;
-    }
-
-    return firstTick;
+    this.updateCurrentCandle(ticker);
   }
 
   private resetCurrentCandle() {
