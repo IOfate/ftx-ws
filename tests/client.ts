@@ -11,6 +11,7 @@ const main = async () => {
   client.on('subscriptions', subList => console.log(`subscriptions: ${subList.length}`));
   const unSubFn = client.on('ticker-BTC/USD', tickerBtc => console.log(tickerBtc));
   client.on('candle-BTC/USD-1m', candleBtc => console.log(candleBtc));
+  client.on('trades-BTC/USD', tradesBtc => console.log(tradesBtc));
 
   client.subscribeTickers(['BTC/USD', 'ETH/USD']);
   client.subscribeTicker('LTC/USD');
@@ -25,6 +26,7 @@ const main = async () => {
   client.subscribeTicker('COMP/USD');
   client.subscribeCandle('BTC/USD', '1m');
   client.subscribeCandle('ETH/USD', '1m');
+  client.subscribeTrades('BTC/USD');
 
   await delay(parseDuration('4s'));
 

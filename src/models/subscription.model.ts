@@ -1,5 +1,5 @@
 export interface Subscription {
-  type: 'ticker' | 'candle';
+  type: 'ticker' | 'candle' | 'trades';
   timestamp: number;
   symbol: string;
 }

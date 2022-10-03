@@ -23,6 +23,9 @@ This package is made by the IOfate company and is open source, feel free to use 
 - [x] Price ticks
   - [x] Subscription
   - [x] Unsubscribe
+- [x] Trades
+  - [x] Subscription
+  - [x] Unsubscribe
 - [x] Candlesticks (**emulated**)
   - [x] Subscription
   - [x] Unsubscribe
@@ -144,6 +147,36 @@ const ftxWS = new FtxWS();
 
 ftxWS.subscribeTickers(['BTC/USDT', 'ETH/USDT']);
 ftxWS.unsubscribeTickers(['BTC/USDT', 'ETH/USDT']);
+```
+
+### ftxWS.subscribeTrades(symbol)
+
+Subscribe to the trades websocket of the chosen symbol.
+Once called you'll be able to listen to trades events for this symbol.
+
+```js
+import { FtxWS } from '@iofate/ftx-ws';
+
+const ftxWS = new FtxWS();
+
+ftxWS.subscribeTrades('BTC/USDT');
+ftxWS.on('trades-BTC/USDT', trades => console.log(trades));
+```
+
+### ftxWS.unsubscribeTrades(symbol)
+
+Unsubscribe from the trades websocket of the associated symbol.
+Once called no more events will be dispatched.
+
+```js
+import { FtxWS } from '@iofate/ftx-ws';
+
+const ftxWS = new FtxWS();
+
+ftxWS.subscribeTrades('BTC/USDT');
+const stopListenFn = ftxWS.on('trades-BTC/USDT', trades => console.log(trades));
+ftxWS.unsubscribeTrades('BTC/USDT');
+stopListenFn();
 ```
 
 ### ftxWS.subscribeCandles(symbol, timeFrame)

@@ -7,10 +7,13 @@ import { noop } from './util';
 import { MessageData } from './models/message-data.model';
 import { RawTicker } from './models/raw-ticker';
 import { Ticker } from './models/ticker';
+import { RawTrade } from './models/raw-trade';
+import { Trade } from './models/trade';
 
 export class EventHandler {
   private readonly maxWaiting = 1500;
   private lastTickers: { [pair: string]: Ticker };
+  private lastTrades: { [pair: string]: Trade };
   private mapResolveWaitEvent: { [eventKey: string]: () => void } = {};
 
   constructor(
@@ -19,6 +22,7 @@ export class EventHandler {
   ) {
     this.mapResolveWaitEvent = {};
     this.lastTickers = {};
+    this.lastTrades = {};
   }
 
   waitForEvent(id: string, callback: (result: boolean) => void = noop()): Promise<boolean> {
@@ -55,6 +59,10 @@ export class EventHandler {
     if (received.type === 'update' && received.channel === 'ticker') {
       this.processRawTicker(received.market, received.data as RawTicker);
     }
+
+    if (received.channel === 'trades') {
+      this.processRawTrades(received.market, received.data as RawTrade[]);
+    }
   }
 
   deleteTickerCache(id: string): void {
@@ -63,10 +71,15 @@ export class EventHandler {
 
   clearCache(): void {
     this.lastTickers = {};
+    this.lastTrades = {};
   }
 
   getLastTickers(): { [pair: string]: Ticker } {
     return this.lastTickers;
+  }
+
+  getLastTrades(): { [pair: string]: Trade } {
+    return this.lastTrades;
   }
 
   private getReceivedEventKey(received: MessageData): string {
@@ -96,5 +109,18 @@ export class EventHandler {
     this.lastTickers[symbol] = ticker;
     this.globalEmitter.emit(`ticker-${symbol}`, ticker);
     this.internalEmitter.emit(`ticker-${symbol}`, ticker);
+  }
+
+  private processRawTrades(symbol: string, rawTradeList: RawTrade[]) {
+    const tradeList: Trade[] = rawTradeList.map((rawTrade: RawTrade) => ({
+      ...rawTrade,
+      symbol,
+      info: rawTrade,
+      timestamp: new Date(rawTrade.time).getTime(),
+    }));
+
+    this.lastTrades[symbol] = tradeList[tradeList.length - 1];
+    this.globalEmitter.emit(`trades-${symbol}`, tradeList);
+    this.internalEmitter.emit(`trades-${symbol}`, tradeList);
   }
 }

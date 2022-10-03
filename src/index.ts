@@ -8,7 +8,7 @@ import { Client } from './client';
 import { Subscription } from './models/subscription.model';
 
 export class FtxWS extends Emittery {
-  private readonly clientTickerList: Client[] = [];
+  private readonly clientList: Client[] = [];
   private readonly clientCandleList: Client[] = [];
   private readonly maxSubscriptions = 98;
   private readonly subscriptionsEvent = 'subscriptions';
@@ -22,7 +22,7 @@ export class FtxWS extends Emittery {
   }
 
   subscribeTicker(symbol: string): void {
-    const alreadySubscribed = this.clientTickerList.some((client: Client) =>
+    const alreadySubscribed = this.clientList.some((client: Client) =>
       client.hasTickerSubscription(symbol),
     );
 
@@ -38,9 +38,7 @@ export class FtxWS extends Emittery {
   }
 
   unsubscribeTicker(symbol: string): void {
-    const client = this.clientTickerList.find((client: Client) =>
-      client.hasTickerSubscription(symbol),
-    );
+    const client = this.clientList.find((client: Client) => client.hasTickerSubscription(symbol));
 
     if (!client) {
       return;
@@ -51,6 +49,28 @@ export class FtxWS extends Emittery {
 
   unsubscribeTickers(symbols: string[]): void {
     symbols.forEach((symbol: string) => this.unsubscribeTicker(symbol));
+  }
+
+  subscribeTrades(symbol: string): void {
+    const alreadySubscribed = this.clientList.some((client: Client) =>
+      client.hasTradesSubscription(symbol),
+    );
+
+    if (alreadySubscribed) {
+      return;
+    }
+
+    this.getLastClient('trades').subscribeTrades(symbol);
+  }
+
+  unsubscribeTrades(symbol: string): void {
+    const client = this.clientList.find((client: Client) => client.hasTradesSubscription(symbol));
+
+    if (!client) {
+      return;
+    }
+
+    client.unsubscribeTrades(symbol);
   }
 
   subscribeCandle(symbol: string, interval: string): void {
@@ -78,26 +98,26 @@ export class FtxWS extends Emittery {
   }
 
   closeConnection(): void {
-    this.clientTickerList.forEach((client: Client) => client.closeConnection());
+    this.clientList.forEach((client: Client) => client.closeConnection());
     this.clientCandleList.forEach((client: Client) => client.closeConnection());
   }
 
   isSocketOpen(): boolean {
     return (
-      this.clientTickerList.every((client) => client.isSocketOpen()) &&
+      this.clientList.every((client) => client.isSocketOpen()) &&
       this.clientCandleList.every((client) => client.isSocketOpen())
     );
   }
 
   isSocketConnecting(): boolean {
     return (
-      this.clientTickerList.some((client) => client.isSocketConnecting()) ||
+      this.clientList.some((client) => client.isSocketConnecting()) ||
       this.clientCandleList.some((client) => client.isSocketConnecting())
     );
   }
 
   getSubscriptionNumber(): number {
-    const allClient: Client[] = [].concat(this.clientTickerList, this.clientCandleList);
+    const allClient: Client[] = [].concat(this.clientList, this.clientCandleList);
 
     return allClient.reduce(
       (acc: number, client: Client) => acc + client.getSubscriptionNumber(),
@@ -114,8 +134,8 @@ export class FtxWS extends Emittery {
     this.timerDisconnectedClient.unref();
   }
 
-  private getLastClient(type: 'ticker' | 'candle'): Client {
-    const list = type === 'ticker' ? this.clientTickerList : this.clientCandleList;
+  private getLastClient(type: 'ticker' | 'trades' | 'candle'): Client {
+    const list = type === 'candle' ? this.clientCandleList : this.clientList;
     const lastClient = list[list.length - 1];
 
     if (!lastClient || lastClient.getSubscriptionNumber() >= this.maxSubscriptions) {
@@ -133,7 +153,7 @@ export class FtxWS extends Emittery {
   }
 
   private emitSubscriptions(): void {
-    const allClient: Client[] = [].concat(this.clientTickerList, this.clientCandleList);
+    const allClient: Client[] = [].concat(this.clientList, this.clientCandleList);
     const allSubscriptions = allClient.reduce(
       (acc: Subscription[], client: Client) => acc.concat(client.getSubscriptions()),
       [],
@@ -143,7 +163,7 @@ export class FtxWS extends Emittery {
   }
 
   private checkDisconnectedClients(): void {
-    const allClient: Client[] = [].concat(this.clientTickerList, this.clientCandleList);
+    const allClient: Client[] = [].concat(this.clientList, this.clientCandleList);
 
     for (const client of allClient) {
       if (!client.receivedPongRecently()) {
