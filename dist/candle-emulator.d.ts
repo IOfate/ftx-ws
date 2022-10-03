@@ -12,7 +12,7 @@ export declare class CandleEmulator {
     constructor(symbol: string, interval: string, globalEmitter: Emittery, internalEmitter: Emittery);
     launch(): Promise<void>;
     reset(): void;
-    private processNextTicker;
+    private processNextTrades;
     private resetCurrentCandle;
     private updateCurrentCandle;
     private getCurrentCandleFromApi;

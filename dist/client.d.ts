@@ -24,8 +24,10 @@ export declare class Client {
     private mapRetrySubscription;
     constructor(emitter: Emittery, globalEmitSubscription: () => void);
     connect(): Promise<void>;
-    subscribeTicker(symbol: string, forCandle?: boolean): void;
+    subscribeTicker(symbol: string): void;
     unsubscribeTicker(symbol: string): void;
+    subscribeTrades(symbol: string, forCandle?: boolean): void;
+    unsubscribeTrades(symbol: string): void;
     subscribeCandle(symbol: string, interval: string): void;
     unsubscribeCandle(symbol: string, interval: string): void;
     closeConnection(): void;
@@ -37,10 +39,14 @@ export declare class Client {
     receivedPongRecently(): boolean;
     shouldReconnectDeadSockets(): void;
     hasTickerSubscription(symbol: string): boolean;
+    hasTradesSubscription(symbol: string): boolean;
     hasCandleSubscription(symbol: string, interval: string): boolean;
     private shouldReconnectTickers;
+    private shouldReconnectTrades;
     private addTickerSubscription;
     private removeTickerSubscription;
+    private addTradesSubscription;
+    private removeTradesSubscription;
     private addCandleSubscription;
     private removeCandleSubscription;
     private send;

@@ -1,6 +1,6 @@
 import Emittery from 'emittery';
 export declare class FtxWS extends Emittery {
-    private readonly clientTickerList;
+    private readonly clientList;
     private readonly clientCandleList;
     private readonly maxSubscriptions;
     private readonly subscriptionsEvent;
@@ -11,6 +11,8 @@ export declare class FtxWS extends Emittery {
     subscribeTickers(symbols: string[]): void;
     unsubscribeTicker(symbol: string): void;
     unsubscribeTickers(symbols: string[]): void;
+    subscribeTrades(symbol: string): void;
+    unsubscribeTrades(symbol: string): void;
     subscribeCandle(symbol: string, interval: string): void;
     unsubscribeCandle(symbol: string, interval: string): void;
     closeConnection(): void;

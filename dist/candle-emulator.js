@@ -21,21 +21,23 @@ class CandleEmulator {
         if (fetchCurrentCandle) {
             this.currentCandle = fetchCurrentCandle;
         }
-        this.unSubFn = this.internalEmitter.on(`ticker-${this.symbol}`, (ticker) => {
-            this.processNextTicker(ticker);
+        this.unSubFn = this.internalEmitter.on(`trades-${this.symbol}`, (tradeList) => {
+            this.processNextTrades(tradeList);
         });
     }
     reset() {
         this.unSubFn();
     }
-    processNextTicker(ticker) {
-        const previousCpt = this.timestampDivider;
-        this.timestampDivider = Math.trunc(ticker.timestamp / this.intervalMs);
-        if (this.timestampDivider !== previousCpt) {
-            this.globalEmitter.emit(`candle-${this.symbol}-${this.interval}`, this.currentCandle);
-            this.resetCurrentCandle();
-        }
-        this.updateCurrentCandle(ticker);
+    processNextTrades(tradeList) {
+        tradeList.forEach((trade) => {
+            const previousCpt = this.timestampDivider;
+            this.timestampDivider = Math.trunc(trade.timestamp / this.intervalMs);
+            if (this.timestampDivider !== previousCpt) {
+                this.globalEmitter.emit(`candle-${this.symbol}-${this.interval}`, this.currentCandle);
+                this.resetCurrentCandle();
+            }
+            this.updateCurrentCandle(trade);
+        });
     }
     resetCurrentCandle() {
         this.currentCandle = {
@@ -47,16 +49,16 @@ class CandleEmulator {
             timestamp: Date.now(),
         };
     }
-    updateCurrentCandle(ticker) {
-        this.currentCandle.high = Math.max(ticker.high, this.currentCandle.high);
+    updateCurrentCandle(trade) {
+        this.currentCandle.high = Math.max(trade.price, this.currentCandle.high);
         this.currentCandle.low = !this.currentCandle.low
-            ? ticker.low
-            : Math.min(ticker.low, this.currentCandle.low);
+            ? trade.price
+            : Math.min(trade.price, this.currentCandle.low);
         if (!this.currentCandle.open) {
-            this.currentCandle.open = ticker.last;
+            this.currentCandle.open = trade.price;
         }
-        this.currentCandle.close = ticker.last;
-        this.currentCandle.timestamp = ticker.timestamp;
+        this.currentCandle.close = trade.price;
+        this.currentCandle.timestamp = trade.timestamp;
     }
     async getCurrentCandleFromApi() {
         const intervalSecond = (0, parse_duration_1.default)(this.interval, 'second');

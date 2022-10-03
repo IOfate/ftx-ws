@@ -11,6 +11,7 @@ class EventHandler {
         this.mapResolveWaitEvent = {};
         this.mapResolveWaitEvent = {};
         this.lastTickers = {};
+        this.lastTrades = {};
     }
     waitForEvent(id, callback = (0, util_1.noop)()) {
         return new Promise((resolve) => {
@@ -39,15 +40,22 @@ class EventHandler {
         if (received.type === 'update' && received.channel === 'ticker') {
             this.processRawTicker(received.market, received.data);
         }
+        if (received.channel === 'trades') {
+            this.processRawTrades(received.market, received.data);
+        }
     }
     deleteTickerCache(id) {
         delete this.lastTickers[id];
     }
     clearCache() {
         this.lastTickers = {};
+        this.lastTrades = {};
     }
     getLastTickers() {
         return this.lastTickers;
+    }
+    getLastTrades() {
+        return this.lastTrades;
     }
     getReceivedEventKey(received) {
         if (received.channel && received.market) {
@@ -73,6 +81,17 @@ class EventHandler {
         this.lastTickers[symbol] = ticker;
         this.globalEmitter.emit(`ticker-${symbol}`, ticker);
         this.internalEmitter.emit(`ticker-${symbol}`, ticker);
+    }
+    processRawTrades(symbol, rawTradeList) {
+        const tradeList = rawTradeList.map((rawTrade) => ({
+            ...rawTrade,
+            symbol,
+            info: rawTrade,
+            timestamp: new Date(rawTrade.time).getTime(),
+        }));
+        this.lastTrades[symbol] = tradeList[tradeList.length - 1];
+        this.globalEmitter.emit(`trades-${symbol}`, tradeList);
+        this.internalEmitter.emit(`trades-${symbol}`, tradeList);
     }
 }
 exports.EventHandler = EventHandler;

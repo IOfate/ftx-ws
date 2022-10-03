@@ -51,14 +51,14 @@ class Client {
             this.restartPreviousSubscriptions();
         }
     }
-    subscribeTicker(symbol, forCandle = false) {
+    subscribeTicker(symbol) {
         const formatSymbol = symbol.replace('-', '/');
         if (this.hasTickerSubscription(symbol)) {
             return;
         }
         const keySub = `subscribed-ticker-${formatSymbol}`;
         clearInterval(this.mapRetrySubscription[keySub]);
-        this.addTickerSubscription(symbol, forCandle);
+        this.addTickerSubscription(symbol);
         const sub = () => {
             if (!this.isSocketOpen()) {
                 const timerRetry = setTimeout(() => sub(), this.retrySubscription).unref();
@@ -106,7 +106,6 @@ class Client {
         if (!this.hasTickerSubscription(symbol)) {
             return;
         }
-        const tickerSubs = this.subscriptions.find((fSub) => fSub.type === 'ticker' && fSub.symbol === symbol);
         this.removeTickerSubscription(symbol);
         this.queueProcessor.push(() => {
             this.eventHandler.waitForEvent(`unsubscribed-ticker-${formatSymbol}`, (result) => {
@@ -114,7 +113,7 @@ class Client {
                     this.eventHandler.deleteTickerCache(formatSymbol);
                     return;
                 }
-                this.addTickerSubscription(symbol, tickerSubs.forCandle);
+                this.addTickerSubscription(symbol);
             });
             this.send(JSON.stringify({
                 op: 'unsubscribe',
@@ -123,7 +122,83 @@ class Client {
             }), (error) => {
                 if (error) {
                     this.emitter.emit(this.emitChannel.ERROR, error);
-                    return this.addTickerSubscription(symbol, tickerSubs.forCandle);
+                    return this.addTickerSubscription(symbol);
+                }
+            });
+        });
+    }
+    subscribeTrades(symbol, forCandle = false) {
+        const formatSymbol = symbol.replace('-', '/');
+        if (this.hasTradesSubscription(symbol)) {
+            return;
+        }
+        const keySub = `subscribed-trades-${formatSymbol}`;
+        clearInterval(this.mapRetrySubscription[keySub]);
+        this.addTradesSubscription(symbol, forCandle);
+        const sub = () => {
+            if (!this.isSocketOpen()) {
+                const timerRetry = setTimeout(() => sub(), this.retrySubscription).unref();
+                this.mapRetrySubscription[keySub] = timerRetry;
+                return;
+            }
+            if (!this.ws.readyState) {
+                this.emitter.emit(this.emitChannel.SOCKET_NOT_READY, `socket not ready to subscribe trades for: ${symbol}, retrying in ${this.retryTimeoutMs}ms`);
+                const timerRetry = setTimeout(() => sub(), this.retryTimeoutMs).unref();
+                this.mapRetrySubscription[keySub] = timerRetry;
+                return;
+            }
+            this.queueProcessor.push(() => {
+                this.eventHandler.waitForEvent(keySub, (result) => {
+                    if (result) {
+                        return;
+                    }
+                    this.removeTradesSubscription(symbol);
+                    setTimeout(() => {
+                        this.emitter.emit(this.emitChannel.RETRY_SUBSCRIPTION, `retry to subscribe trades for: ${symbol}, retrying in ${this.retrySubscription}ms`);
+                        this.subscribeTrades(symbol);
+                    }, this.retrySubscription).unref();
+                });
+                this.send(JSON.stringify({
+                    op: 'subscribe',
+                    channel: 'trades',
+                    market: formatSymbol,
+                }), (error) => {
+                    if (error) {
+                        this.emitter.emit(this.emitChannel.ERROR, error);
+                        setTimeout(() => {
+                            this.emitter.emit(this.emitChannel.RETRY_SUBSCRIPTION, `retry to subscribe trades for: ${symbol}, retrying in ${this.retrySubscription}ms`);
+                            this.subscribeTrades(symbol);
+                        }, this.retrySubscription).unref();
+                        return this.removeTradesSubscription(symbol);
+                    }
+                });
+            });
+        };
+        sub();
+    }
+    unsubscribeTrades(symbol) {
+        this.requireSocketToBeOpen();
+        const formatSymbol = symbol.replace('-', '/');
+        if (!this.hasTradesSubscription(symbol)) {
+            return;
+        }
+        const tradesSub = this.subscriptions.find((fSub) => fSub.type === 'trades' && fSub.symbol === symbol);
+        this.removeTradesSubscription(symbol);
+        this.queueProcessor.push(() => {
+            this.eventHandler.waitForEvent(`unsubscribed-trades-${formatSymbol}`, (result) => {
+                if (result) {
+                    return;
+                }
+                this.addTradesSubscription(symbol, tradesSub.forCandle);
+            });
+            this.send(JSON.stringify({
+                op: 'unsubscribe',
+                channel: 'trades',
+                market: formatSymbol,
+            }), (error) => {
+                if (error) {
+                    this.emitter.emit(this.emitChannel.ERROR, error);
+                    return this.addTradesSubscription(symbol, tradesSub.forCandle);
                 }
             });
         });
@@ -138,7 +213,7 @@ class Client {
         const formatSymbol = symbol.replace('-', '/');
         const candleEmulator = new candle_emulator_1.CandleEmulator(formatSymbol, interval, this.emitter, this.internalEmitter);
         candleEmulator.launch();
-        this.subscribeTicker(symbol, true);
+        this.subscribeTrades(symbol, true);
         this.addCandleSubscription(formatSymbol, interval, candleEmulator);
     }
     unsubscribeCandle(symbol, interval) {
@@ -195,10 +270,16 @@ class Client {
         }
         const now = Date.now();
         this.shouldReconnectTickers(now);
+        this.shouldReconnectTrades(now);
     }
     hasTickerSubscription(symbol) {
         return this.subscriptions
             .filter((fSub) => fSub.type === 'ticker')
+            .some((sSub) => sSub.symbol === symbol);
+    }
+    hasTradesSubscription(symbol) {
+        return this.subscriptions
+            .filter((fSub) => fSub.type === 'trades')
             .some((sSub) => sSub.symbol === symbol);
     }
     hasCandleSubscription(symbol, interval) {
@@ -220,10 +301,28 @@ class Client {
             return timeDiff >= this.triggerTickerDisconnected;
         })
             .forEach((pair) => {
-            const tickerSubs = this.subscriptions.find((fSub) => fSub.type === 'ticker' && fSub.symbol === pair);
             this.unsubscribeTicker(pair);
-            this.subscribeTicker(pair, tickerSubs.forCandle);
-            if (tickerSubs.forCandle) {
+            this.subscribeTicker(pair);
+        });
+    }
+    shouldReconnectTrades(now) {
+        const lastEmittedTrades = this.eventHandler.getLastTrades();
+        const allTrades = this.subscriptions
+            .filter((fSub) => fSub.type === 'trades')
+            .map((mSub) => mSub.symbol);
+        allTrades
+            .filter((pair) => {
+            if (!lastEmittedTrades[pair]) {
+                return true;
+            }
+            const timeDiff = now - lastEmittedTrades[pair].timestamp;
+            return timeDiff >= this.triggerTickerDisconnected;
+        })
+            .forEach((pair) => {
+            const tradesSubs = this.subscriptions.find((fSub) => fSub.type === 'trades' && fSub.symbol === pair);
+            this.unsubscribeTrades(pair);
+            this.subscribeTrades(pair, tradesSubs.forCandle);
+            if (tradesSubs.forCandle) {
                 const candleSubList = this.subscriptions.filter((fSub) => fSub.type === 'candle' && fSub.symbol === pair);
                 candleSubList.forEach((candleSub) => {
                     this.emitter.emit(this.emitChannel.RECONNECT_CANDLE, candleSub);
@@ -231,10 +330,9 @@ class Client {
             }
         });
     }
-    addTickerSubscription(symbol, forCandle) {
+    addTickerSubscription(symbol) {
         const subscription = {
             symbol,
-            forCandle,
             type: 'ticker',
             timestamp: Date.now(),
         };
@@ -246,6 +344,24 @@ class Client {
             return;
         }
         const indexSub = this.subscriptions.findIndex((fSub) => fSub.type === 'ticker' && fSub.symbol === symbol);
+        this.subscriptions.splice(indexSub, 1);
+        this.globalEmitSubscription();
+    }
+    addTradesSubscription(symbol, forCandle) {
+        const subscription = {
+            symbol,
+            forCandle,
+            type: 'trades',
+            timestamp: Date.now(),
+        };
+        this.subscriptions.push(subscription);
+        this.globalEmitSubscription();
+    }
+    removeTradesSubscription(symbol) {
+        if (!this.hasTradesSubscription(symbol)) {
+            return;
+        }
+        const indexSub = this.subscriptions.findIndex((fSub) => fSub.type === 'trades' && fSub.symbol === symbol);
         this.subscriptions.splice(indexSub, 1);
         this.globalEmitSubscription();
     }
@@ -288,8 +404,11 @@ class Client {
         const previousSubs = [].concat(this.subscriptions);
         this.subscriptions.length = 0;
         for (const subscription of previousSubs) {
-            if (subscription.type === 'ticker' && !subscription.forCandle) {
+            if (subscription.type === 'ticker') {
                 this.subscribeTicker(subscription.symbol);
+            }
+            if (subscription.type === 'trades' && !subscription.forCandle) {
+                this.subscribeTrades(subscription.symbol);
             }
             if (subscription.type === 'candle') {
                 subscription.emulator.reset();
